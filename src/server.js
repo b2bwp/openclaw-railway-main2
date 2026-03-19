@@ -1152,6 +1152,11 @@ proxy.on("proxyReqWs", (proxyReq, req, socket, options, head) => {
   proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
   proxyReq.setHeader("Origin", PROXY_ORIGIN);
 });
+// MS Teams Bot Framework webhook → msteams plugin (port 3978)
+const MSTEAMS_WEBHOOK_TARGET = `http://127.0.0.1:${Number.parseInt(process.env.MSTEAMS_WEBHOOK_PORT ?? "3978", 10)}`;
+app.post("/api/messages", (req, res) => {
+proxy.web(req, res, { target: MSTEAMS_WEBHOOK_TARGET });
+});
 
 app.use(async (req, res) => {
   if (!isConfigured() && !req.path.startsWith("/setup")) {
