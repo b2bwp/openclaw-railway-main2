@@ -3,13 +3,15 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { Readable } from "node:stream";
+
+
 import express from "express";
 import httpProxy from "http-proxy";
 import pty from "node-pty";
 import { WebSocketServer } from "ws";
 
-const PORT = Number.parseInt(process.env.PORT ?? "8080", 10);
+// When nginx handles the public port (8080), the wrapper listens internally.
+const PORT = Number.parseInt(process.env.WRAPPER_PORT ?? process.env.PORT ?? "8080", 10);
 const STATE_DIR =
   process.env.OPENCLAW_STATE_DIR?.trim() ||
   path.join(os.homedir(), ".openclaw");
@@ -371,17 +373,9 @@ function requireSetupAuth(req, res, next) {
 
 const app = express();
 app.disable("x-powered-by");
-// MS Teams webhook – vor Body-Parser, damit raw stream intakt bleibt
-// MS Teams Bot Framework webhook → msteams plugin (port 3978)
-// Buffer the raw body first, then replay it as a fresh stream for http-proxy.
-// Express 5 touches the incoming stream internally, which causes raw-body on
-// the target to see an aborted request if we pipe the original req directly.
-const MSTEAMS_WEBHOOK_TARGET = `http://127.0.0.1:${Number.parseInt(process.env.MSTEAMS_WEBHOOK_PORT ?? "3978", 10)}`;
-app.post("/api/messages", express.raw({ type: "*/*", limit: "2mb" }), (req, res) => {
-const bodyBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || "");
-const bufferStream = Readable.from(bodyBuf);
-proxy.web(req, res, { target: MSTEAMS_WEBHOOK_TARGET, buffer: bufferStream });
-});
+
+// /api/messages is handled by nginx → msteams plugin (port 3978) directly.
+// No JS proxy needed — avoids Express body-stream corruption entirely.
 
 app.use(express.json({ limit: "1mb" }));
 
